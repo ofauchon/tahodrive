@@ -157,7 +157,7 @@ sub decodeEndUser {
 getopts("hc", \%options);
 if (defined $options{h}) {
   print "-h  This help\n" ;
-  print "-c  Disable request cache\n" ;
+  print "-c  Enable request cache (will cache all server responses, great for dev or demo)\n" ;
   exit; 
 }
 
