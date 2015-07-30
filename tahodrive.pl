@@ -6,7 +6,23 @@ use Data::Dumper;
 use Digest::MD5 qw(md5_hex); 
 use Config::Simple;
 use Getopt::Std;
+use Module::Pluggable search_path => 'plugins::devices', sub_name => 'devices', instantiate => 'new'; 
 use strict; 
+
+# Save list of created plugin objects
+my @plug_devices = devices(); 
+my @values;
+
+sub getPlugin{
+	my $name=shift; 
+	foreach my $p (@plug_devices) {
+		if ($p =~/$name/i) {
+			return $p; 
+		} 
+	}
+	return '';
+} 
+	
 
 my $URL="https://www.tahomalink.com/enduser-mobile-web/externalAPI";
 my $AGENT="TaHoma/2.6 CFNetwork/672.0.8 Darwin/14.0.0";
@@ -79,6 +95,7 @@ sub oend {
 #
 sub request{
 	my $u = shift; 
+	my $p = shift; 
 	my $doc; 
 	my $cachefile=$userdircache."/".md5_hex($u); 
 	#If cache enabled, and cache exists, use it ! 
@@ -88,7 +105,14 @@ sub request{
 	} else {
 		#olog("New cache $cachefile for $u\n"); 
 		#print("New cache $cachefile for $u\n"); 
-		my $res = $ua->get($u) or oend("Request $u failed");
+		my $res; 
+		if (length($p) >0) {
+			#print "Sending POST\n"; 
+			$res = $ua->post($u, Content_Type => 'text/xml', Content => $p) or oend("POST Request $u failed");
+		} else {
+			#print "Sending GET\n"; 
+			$res = $ua->get($u) or oend("GET Request $u failed");
+		}
 		open (FH, ">", $cachefile) or die("Can't create cache file $cachefile"); 
 		print FH $res->content; 
 		close (FH); 
@@ -99,7 +123,10 @@ sub request{
 	return $doc; 
 }
 
+
+#
 # decodeSetup()
+#
 sub decodeSetup {
   my $xml = shift; 
   foreach my $gate ($xml->findnodes('/gt:setupResponse/gt:setup/gt:gateways/gt:gateway')) {
@@ -149,9 +176,9 @@ sub decodeEndUser {
 
 
 
-#
-# The real code starts here
-#
+##
+## The real code starts here
+##
 
 # Command line options
 getopts("hc", \%options);
@@ -183,27 +210,15 @@ decodeEndUser($xmlres);
 $xmlres=request($URL."/getSetup");
 decodeSetup($xmlres);
 
-
 $xmlres=request($URL."/getHistory");
 decodeHistory($xmlres);
 
 my $xmlres=request($URL."/getActionGroups"); 
 decodeActionGroups($xmlres);
 
+#my $xml = getPlugin("rollerShutter")->command("io://XXXX-XXXX-XXXX/XXXXXXXX", "setClosureAndLinearSpeed", (value => 10, speed => "lowspeed")); 
+#my $xmlres=request($URL."/apply",$xml); 
+
 # Clean shutdown with logout
 my $xmlres=request($URL."/logout"); 
-
-
-
-
-# Nothing interesting yet
-#<activeProtocolsTypeResponse xmlns="urn:overkiz:externalapi"><protocolsType>1,2,5,6,7,8,11,13,14,22</protocolsType></activeProtocolsTypeResponse>
-#my $xmlres=request($URL."/getActiveProtocolsType?gatewayId=".$g_gatewayId); 
-
-# Nothing interesting yet
-# <eventPollResponse xmlns="urn:overkiz:externalapi"></eventPollResponse>
-#my $xmlres=request($URL."/getEvents"); 
-
-
-
 
